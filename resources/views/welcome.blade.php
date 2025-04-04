@@ -7,6 +7,7 @@
     <title>Laravel 9 To-Do List</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    
     <style>
         * {
             margin: 0;
@@ -182,12 +183,89 @@
                 });
             }
 
+            $('#editTaskForm').submit(function(e) {
+    e.preventDefault();
+
+    console.log("Edit form submitted"); // Debug log
+
+    let taskId = $('#editTaskId').val();
+    let taskTime = $('#editTaskTime').val();
+    let formattedTaskTime = taskTime ? taskTime.replace('T', ' ') + ':00' : null;
+
+    let data = {
+        title: $('#editTitle').val(),
+        objective: $('#editObjective').val(),
+        task_time: formattedTaskTime,
+        duration: $('#editDuration').val(),
+        _token: $('meta[name="csrf-token"]').attr('content'),
+        _method: 'PUT'
+    };
+
+    console.log("Data to send:", data);
+
+    $.ajax({
+        url: `/tasks/${taskId}`,
+        type: 'POST',
+        data: data,
+        success: function() {
+            console.log("Update success");
+
+            const modalEl = document.getElementById('editTaskModal');
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal.getInstance) {
+                const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                modalInstance.hide();
+            } else {
+                $('#editTaskModal').modal('hide');
+                $('body').removeClass('modal-open');
+                $('.modal-backdrop').remove();
+            }
+
+            loadTasks();
+        },
+        error: function(xhr) {
+            console.error("Update failed", xhr.responseText);
+            alert('Failed to update task.\n' + xhr.responseText);
+        }
+    });
+});
+
+
+
+
+
+            // $('#taskForm').submit(function(e) {
+            //     e.preventDefault();
+            //     let formData = new FormData();
+            //     formData.append('title', $('#title').val());
+            //     formData.append('objective', $('#objective').val());
+            //     formData.append('image', $('#image')[0].files[0]);
+
+            //     let taskTime = $('#task_time').val();
+            //     let formattedTaskTime = taskTime ? taskTime.replace('T', ' ') + ':00' : null;
+            //     formData.append('task_time', formattedTaskTime);
+            //     formData.append('duration', $('#duration').val());
+            //     formData.append('_token', $('meta[name="csrf-token"]').attr('content'));
+
+            //     $.ajax({
+            //         url: '/tasks',
+            //         type: 'POST',
+            //         data: formData,
+            //         processData: false,
+            //         contentType: false,
+            //         success: function() {
+            //             $('#taskForm')[0].reset();
+            //             loadTasks();
+            //         }
+            //     });
+            // });
+
             $('#taskForm').submit(function(e) {
                 e.preventDefault();
+
                 let formData = new FormData();
                 formData.append('title', $('#title').val());
                 formData.append('objective', $('#objective').val());
-                formData.append('image', $('#image')[0].files[0]);
+                formData.append('image', $('#image')[0]?.files[0] || '');
 
                 let taskTime = $('#task_time').val();
                 let formattedTaskTime = taskTime ? taskTime.replace('T', ' ') + ':00' : null;
@@ -201,12 +279,30 @@
                     data: formData,
                     processData: false,
                     contentType: false,
-                    success: function() {
-                        $('#taskForm')[0].reset();
+                    success: function(response) {
+                        alert('Task added successfully!');
+                        $('#taskForm')[0].reset(); // ✅ Reset only on success
                         loadTasks();
+                    },
+                    error: function(xhr) {
+                        if (xhr.status === 422) {
+                            // Laravel validation error
+                            let errors = xhr.responseJSON.errors;
+                            let messages = Object.values(errors).flat().join('\n');
+                            alert("Validation Error:\n" + messages);
+                        } else if (xhr.status === 409) {
+                            // Conflict (duplicate task)
+                            alert("Duplicate Task:\n" + (xhr.responseJSON?.error ||
+                                'A task with the same title already exists.'));
+                        } else {
+                            alert("Something went wrong:\n" + xhr.statusText);
+                        }
                     }
                 });
             });
+
+
+
 
             $(document).on('change', '.task-checkbox', function() {
                 let taskId = $(this).data('id');

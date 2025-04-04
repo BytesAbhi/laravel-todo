@@ -14,51 +14,60 @@ class TaskController extends Controller
         return response()->json($tasks);
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'title' => 'required|string|max:255|unique:tasks',
-            'objective' => 'nullable|string',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'task_time' => 'nullable|date_format:Y-m-d H:i:s',
-            'duration' => 'nullable|integer|min:1',
-        ]);
+  public function store(Request $request)
+{
+    // Validate input
+    $validated = $request->validate([
+        'title' => 'required|max:255',
+        'objective' => 'nullable|string',
+        'image' => 'nullable|image',
+        'task_time' => 'nullable',
+        'duration' => 'nullable'
+    ]);
 
-        $task = new Task();
-        $task->title = $request->title;
-        $task->objective = $request->objective;
-        $task->duration = $request->duration;
-        $task->task_time = $request->task_time;
 
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('tasks', 'public');
-            $task->image = $imagePath;
-        }
-
-        $task->save();
-
-        return response()->json(['message' => 'Task added successfully!']);
+if ($request->hasFile('image')) {
+        $image = $request->file('image');
+        $imagePath = $image->store('tasks', 'public');
+        $validated['image'] = $imagePath;
     }
+    
+    $existing = Task::where('title', $validated['title'])->first();
+
+    if ($existing) {
+        
+        return response()->json([
+            'error' => 'A task with this title already exists.'
+        ], 409);
+    }
+
+    
+    Task::create($validated);
+
+    return response()->json(['message' => 'Task added successfully'], 201);
+}
 
 
     public function update(Request $request, $id)
-    {
-        $task = Task::findOrFail($id);
-        $task->title = $request->title;
-        $task->objective = $request->objective;
-        $task->task_time = $request->task_time;
-        $task->duration = $request->duration;
+{
+    $request->validate([
+        'title' => 'required|string|max:255',
+        'objective' => 'nullable|string',
+        'task_time' => 'nullable|date',
+        'duration' => 'nullable|integer',
+    ]);
 
-        if ($request->hasFile('image')) {
-            if ($task->image) {
-                Storage::disk('public')->delete($task->image);
-            }
-            $task->image = $request->file('image')->store('tasks', 'public');
-        }
+    $task = Task::findOrFail($id);
+    $task->update([
+        'title' => $request->title,
+        'objective' => $request->objective,
+        'task_time' => $request->task_time,
+        'duration' => $request->duration,
+    ]);
 
-        $task->save();
-        return response()->json(['message' => 'Task updated successfully']);
-    }
+    return response()->json(['message' => 'Task updated successfully']);
+}
+
 
 
     public function updateCompletion(Request $request, $id)
